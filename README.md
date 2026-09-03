@@ -1,5 +1,9 @@
 # dispose() VRAM Audit — Three.js Level Teardown
 
+<!-- LINKS:BEGIN — üretildi: scripts/sync-repo-links.py · elle düzenleme -->
+**▶ [Live demo](https://m2-md.github.io/threejs-dispose-vram-audit/)** · [Source](https://github.com/m2-md/threejs-dispose-vram-audit)
+<!-- LINKS:END -->
+
 Working code for the article "The Garbage Collector's Key Does Not Open the GPU
 Door". It reloads a level 200 times in a menu→level→menu cycle, first makes the
 VRAM leak visible through the `renderer.info.memory` counters, then closes it
