@@ -12,7 +12,7 @@ export class DisposeSpy {
   private seenMat = new WeakSet<THREE.Material>();
   private programRefs = new Map<string, number>();
 
-  // renderer.info ile BİREBİR aynı şekil → MemoryProbe ikisini de okuyabilir
+  // EXACTLY the same shape as renderer.info → MemoryProbe can read either one
   get info() {
     return {
       memory: { geometries: this.geom, textures: this.tex },
@@ -63,7 +63,7 @@ export class DisposeSpy {
       if (tex instanceof THREE.Texture) this.trackTexture(tex);
     }
 
-    // Program: imzaya göre dedup — WebGLPrograms gibi
+    // Program: deduped by signature — the way WebGLPrograms does it
     const sig = programSignature(material);
     const refs = this.programRefs.get(sig) ?? 0;
     this.programRefs.set(sig, refs + 1);

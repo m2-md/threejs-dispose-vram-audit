@@ -1,6 +1,6 @@
-// view/chart.ts — geometries drift'inin neon alan/çizgi grafiği.
-// leak (naif) → tırmanan rose çizgi + glow + dolgu gradient; fixed (doğru) → düz emerald.
-// Salt görsel: MemoryProbe.toCSV() satırlarını okur, sayaç mantığına dokunmaz.
+// view/chart.ts — neon area/line chart of the geometries drift.
+// leak (naive) → climbing rose line + glow + fill gradient; fixed (correct) → flat emerald.
+// Purely visual: it reads MemoryProbe.toCSV() rows and does not touch the counter logic.
 
 export type ChartMode = "leak" | "fixed";
 
@@ -22,7 +22,7 @@ const COLORS: Record<
   },
 };
 
-// rows: [cycle, geometries, textures, programs, calls][] (baseline satırı dahil)
+// rows: [cycle, geometries, textures, programs, calls][] (baseline row included)
 export function drawDriftChart(
   canvas: HTMLCanvasElement,
   rows: number[][],
@@ -42,12 +42,12 @@ export function drawDriftChart(
   const plotH = cssH - pad.t - pad.b;
   const c = COLORS[mode];
 
-  // Ölçek: y ekseni her zaman 0..1600 (makale tepe değeri) → iki mod aynı skalada.
+  // Scale: the y axis is always 0..1600 (the article's peak value) → both modes share one scale.
   const maxY = 1600;
-  const geom = rows.map((r) => r[1] - rows[0][1]); // baseline'a göre drift
+  const geom = rows.map((r) => r[1] - rows[0][1]); // drift relative to the baseline
   const peak = Math.max(0, ...geom);
 
-  // --- ince ızgara + eksen etiketleri ---
+  // --- thin grid + axis labels ---
   ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
   ctx.textBaseline = "middle";
   const ticks = [0, 400, 800, 1200, 1600];
@@ -68,7 +68,7 @@ export function drawDriftChart(
     pad.l + (geom.length <= 1 ? 0 : (i / (geom.length - 1)) * plotW);
   const yAt = (v: number) => pad.t + plotH - (v / maxY) * plotH;
 
-  // --- dolgu gradient ---
+  // --- fill gradient ---
   const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t + plotH);
   grad.addColorStop(0, c.fill0);
   grad.addColorStop(1, c.fill1);
@@ -80,7 +80,7 @@ export function drawDriftChart(
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // --- neon çizgi + glow ---
+  // --- neon line + glow ---
   ctx.save();
   ctx.shadowColor = c.glow;
   ctx.shadowBlur = 14;
@@ -94,7 +94,7 @@ export function drawDriftChart(
   ctx.stroke();
   ctx.restore();
 
-  // --- tepe noktası + rozet ---
+  // --- peak point + badge ---
   const lastX = xAt(geom.length - 1);
   const lastY = yAt(geom[geom.length - 1]);
   ctx.fillStyle = c.line;
@@ -102,15 +102,15 @@ export function drawDriftChart(
   ctx.arc(lastX, lastY, 3.2, 0, Math.PI * 2);
   ctx.fill();
 
-  // başlık
+  // title
   ctx.fillStyle = "rgba(226,232,240,0.85)";
   ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
   ctx.textAlign = "left";
   ctx.fillText("GEOMETRIES DRIFT", pad.l, 11);
 
-  // tepe rozeti (yalnız sızıntı görünür yükseldiğinde)
+  // peak badge (only when the leak visibly climbs)
   if (peak > 40) {
-    const badge = `tepe ${peak}`;
+    const badge = `peak ${peak}`;
     ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
     const bw = ctx.measureText(badge).width + 14;
     const bx = Math.min(lastX + 6, cssW - bw - 4);

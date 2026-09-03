@@ -1,11 +1,11 @@
-// main.ts — tarayıcı demosu.
-// İKİ ayrı WebGL context vardır:
-//   1) ÖLÇÜM renderer'ı (aşağıdaki `renderer`) — makaledeki gerçek WebGLRenderer.
-//      `renderer.info.memory` sayaçlarını besler. Sahnesi baseline'da BOŞtur, bu yüzden
-//      naif 200 döngü sonunda geometries drift = ve mutlak = 1600 (makale iddiası korunur).
-//   2) DIORAMA renderer'ı (view/diorama.ts) — salt sinematik sunum, AYRI context.
-//      Ölçüm sayaçlarına dokunmaz.
-// `file://` ile AÇILMAZ (boş ekran) → `npm run dev` (Vite).
+// main.ts — browser demo.
+// There are TWO separate WebGL contexts:
+//   1) The MEASUREMENT renderer (`renderer` below) — the real WebGLRenderer from the article.
+//      It feeds the `renderer.info.memory` counters. Its scene is EMPTY at baseline, so after
+//      200 naive cycles the geometries drift = absolute = 1600 (the article's claim holds).
+//   2) The DIORAMA renderer (view/diorama.ts) — presentation only, a SEPARATE context.
+//      It does not touch the measurement counters.
+// Do NOT open with `file://` (blank screen) → `npm run dev` (Vite).
 import * as THREE from "three";
 import { SceneManager } from "./scene-manager";
 import { NaiveSceneManager } from "./naive-scene-manager";
@@ -20,13 +20,13 @@ const meterGl = document.getElementById("meter-gl") as HTMLElement;
 const chart = document.getElementById("chart") as HTMLCanvasElement;
 const status = document.getElementById("status") as HTMLElement;
 
-// Sinematik sunum — ayrı context. Ölçümü etkilemez.
+// Cinematic presentation — separate context. Does not affect the measurement.
 createDiorama(stage);
 
-// --- ÖLÇÜM renderer'ı: makaledeki gerçek WebGLRenderer, sayaç kaynağı. ---
-// Görünür değil (küçük, gizli kap) ama gerçek bir context → render() sayaçları besler.
+// --- MEASUREMENT renderer: the real WebGLRenderer from the article, source of the counters. ---
+// Not visible (a small, hidden container) but a real context → render() feeds the counters.
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.info.autoReset = false; // render.calls'ı biz sıfırlayacağız; memory zaten kalıcı
+renderer.info.autoReset = false; // we reset render.calls ourselves; memory is persistent anyway
 renderer.setSize(320, 200);
 meterGl.appendChild(renderer.domElement);
 
@@ -34,17 +34,17 @@ const camera = new THREE.PerspectiveCamera(60, 320 / 200, 0.1, 100);
 camera.position.set(0, 0, 6);
 const light = new THREE.AmbientLight(0xffffff, 1);
 
-// Doğru sürüm: makaledeki tarayıcı döngüsünün birebir hâli.
+// Correct version: the exact browser loop from the article.
 function runCorrect(): MemoryProbe {
   const sm = new SceneManager();
   sm.scene.add(light);
   const probe = new MemoryProbe();
-  probe.sample(renderer, 0); // baseline: boş sahne
+  probe.sample(renderer, 0); // baseline: empty scene
 
   for (let cycle = 1; cycle <= 200; cycle++) {
     const level = buildLevel(sm.cache, cycle);
     sm.load(level);
-    renderer.render(sm.scene, camera); // GPU'ya yükle
+    renderer.render(sm.scene, camera); // upload to the GPU
     sm.unload(level);
     const s = probe.sample(renderer, cycle);
     console.log(cycle, s.geometries, s.textures, s.programs);
@@ -52,11 +52,11 @@ function runCorrect(): MemoryProbe {
   return probe;
 }
 
-// Naif sürüm: yalnızca scene.remove — GPU'ya tek kelime etmez.
+// Naive version: scene.remove only — it never says a word to the GPU.
 function runNaive(): MemoryProbe {
   const naive = new NaiveSceneManager();
   naive.scene.add(light);
-  const cache = new TextureCache(); // naif sürüm bunu asla release etmez
+  const cache = new TextureCache(); // the naive version never releases this
   const probe = new MemoryProbe();
   probe.sample(renderer, 0);
 
@@ -64,7 +64,7 @@ function runNaive(): MemoryProbe {
     const level = buildLevel(cache, cycle);
     naive.load(level);
     renderer.render(naive.scene, camera);
-    naive.unload(level); // yalnızca scene.remove
+    naive.unload(level); // scene.remove only
     const s = probe.sample(renderer, cycle);
     console.log(cycle, s.geometries, s.textures, s.programs);
   }
@@ -94,28 +94,28 @@ function showDrift(probe: MemoryProbe, mode: ChartMode): void {
   const verdict = document.getElementById("verdict")!;
   if (mode === "leak") {
     verdict.textContent =
-      "NAİF — scene.remove. Sol binadaki tabelayı söktük; sağ bina (VRAM) tıka basa dolu.";
+      "NAIVE — scene.remove. We took the sign off the left building; the right one (VRAM) is packed full.";
     verdict.dataset.state = "leak";
   } else {
     verdict.textContent =
-      "DOĞRU — dispose + refcount. 200 döngüde dört sayaç da baseline'a döndü. Sıfır sızıntı.";
+      "CORRECT — dispose + refcount. Across 200 cycles all four counters returned to baseline. Zero leak.";
     verdict.dataset.state = "fixed";
   }
 }
 
 function run(mode: ChartMode): void {
-  status.textContent = "200 döngü koşuyor…";
-  // Ölçüm bloke edici; status'ün boyanması için bir sonraki tick'e bırak.
-  // rAF DEĞİL setTimeout: arka plan sekmede rAF durur, setTimeout çalışır —
-  // kullanıcı çalıştırıp sekme değiştirse bile ölçüm tamamlanır.
+  status.textContent = "running 200 cycles…";
+  // The measurement blocks; defer to the next tick so the status gets painted.
+  // setTimeout, NOT rAF: rAF halts in a background tab, setTimeout keeps running —
+  // so the measurement finishes even if the user starts it and switches tabs.
   setTimeout(() => {
     const probe = mode === "leak" ? runNaive() : runCorrect();
     drawDriftChart(chart, rowsOf(probe), mode);
     showDrift(probe, mode);
     status.textContent =
       mode === "leak"
-        ? "naif: geometries 1600'e tırmandı"
-        : "doğru: geometries düz sıfır çizgisi";
+        ? "naive: geometries climbed to 1600"
+        : "correct: geometries is a flat zero line";
   }, 0);
 }
 

@@ -10,6 +10,6 @@ export class NaiveSceneManager {
   }
 
   unload(level: Level): void {
-    this.scene.remove(level.root); // sol binadaki tabelayı sök — hepsi bu
+    this.scene.remove(level.root); // take the sign off the left building — that is all
   }
 }

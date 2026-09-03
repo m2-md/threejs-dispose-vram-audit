@@ -6,11 +6,11 @@ export const ATLAS_KEY = "shared-atlas";
 
 export interface Level {
   root: THREE.Object3D;
-  shared: string[]; // cache anahtarları (paylaşılan dokular)
-  extras: { dispose(): void }[]; // render target, PMREM — sahne grafiği DIŞI
+  shared: string[]; // cache keys (shared textures)
+  extras: { dispose(): void }[]; // render target, PMREM — OUTSIDE the scene graph
 }
 
-// mulberry32 — küçük, hızlı, deterministik PRNG (object-pools / broad-phase ile birebir).
+// mulberry32 — small, fast, deterministic PRNG (identical to the one in object-pools / broad-phase).
 export function makeRng(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
@@ -21,7 +21,7 @@ export function makeRng(seed: number): () => number {
   };
 }
 
-// Küçük bir RGBA DataTexture — GL context GEREKMEZ, node'da da kurulur.
+// A tiny RGBA DataTexture — needs NO GL context, so it builds under node too.
 export function dataTexture(
   size: number,
   rng: () => number,
@@ -41,25 +41,25 @@ export function buildLevel(
   const rng = makeRng(seed);
   const root = new THREE.Group();
 
-  // Paylaşılan atlas: TÜM seviyeler tek instance'ı paylaşır. Üreticisi sabit içerikli
-  // (makeRng(0)) — cache YALNIZCA ilk edinmede koşturur, sonrası refcount.
+  // Shared atlas: ALL levels share a single instance. Its factory has fixed content
+  // (makeRng(0)) — the cache runs it ONLY on the first acquire, after that it is refcount.
   const atlas = cache.acquire(ATLAS_KEY, () => dataTexture(64, makeRng(0)));
 
-  // Seviyeye göre değişen opsiyonel doku slotları → farklı program imzaları.
-  // Naif sürümde bu imzalar birikir (programs tırmanır); doğru sürümde her biri
-  // seviye boşalınca serbest kalır (programs baseline'a döner).
+  // Optional texture slots that vary per level → different program signatures.
+  // In the naive version these signatures pile up (programs climbs); in the correct
+  // version each one is released when the level unloads (programs returns to baseline).
   const mask = seed % 8;
 
   for (let i = 0; i < meshCount; i++) {
-    const geometry = new THREE.BoxGeometry(1, 1, 1); // her mesh KENDİ geometrisi
+    const geometry = new THREE.BoxGeometry(1, 1, 1); // every mesh gets its OWN geometry
     const material = new THREE.MeshStandardMaterial({
-      map: atlas, // paylaşılan doku
-      normalMap: dataTexture(32, rng), // sahipli
-      roughnessMap: dataTexture(32, rng), // sahipli
+      map: atlas, // shared texture
+      normalMap: dataTexture(32, rng), // owned
+      roughnessMap: dataTexture(32, rng), // owned
     });
-    if (mask & 1) material.metalnessMap = dataTexture(32, rng); // sahipli, opsiyonel
-    if (mask & 2) material.aoMap = dataTexture(32, rng); // sahipli, opsiyonel
-    if (mask & 4) material.alphaMap = dataTexture(32, rng); // sahipli, opsiyonel
+    if (mask & 1) material.metalnessMap = dataTexture(32, rng); // owned, optional
+    if (mask & 2) material.aoMap = dataTexture(32, rng); // owned, optional
+    if (mask & 4) material.alphaMap = dataTexture(32, rng); // owned, optional
     root.add(new THREE.Mesh(geometry, material));
   }
 

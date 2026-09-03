@@ -1,46 +1,47 @@
-# dispose() VRAM Denetimi — Three.js Seviye Boşaltma
+# dispose() VRAM Audit — Three.js Level Teardown
 
-"Çöpçünün Anahtarı GPU Kapısını Açmaz" makalesinin çalışan kodu. Bir seviyeyi
-menü→seviye→menü döngüsünde 200 kez yeniden yükleyip `renderer.info.memory`
-sayaçlarıyla VRAM sızıntısını önce gözle görür, sonra referans sayan bir
-ResourceTracker ile kapatır — ve WebGL gerektirmeyen sayan bir sahte renderer'la
-sıfır sızıntıyı vitest altında kanıtlar.
+Working code for the article "The Garbage Collector's Key Does Not Open the GPU
+Door". It reloads a level 200 times in a menu→level→menu cycle, first makes the
+VRAM leak visible through the `renderer.info.memory` counters, then closes it
+with a reference-counting ResourceTracker — and proves zero leak under vitest
+with a counting fake renderer that needs no WebGL.
 
-Three.js 3D serisinin **ilk** projesi; sonraki projeler (fizik, glTF, terrain)
-bu `SceneManager` + `TextureCache` + `disposeSubtree` omurgasını miras alır.
+The **first** project of the Three.js 3D series; the projects that follow
+(physics, glTF, terrain) inherit this `SceneManager` + `TextureCache` +
+`disposeSubtree` backbone.
 
-Sürüm: `three@0.185.1` (r185), klasik `WebGLRenderer`. Bu proje WebGPU'ya girmez.
+Version: `three@0.185.1` (r185), the classic `WebGLRenderer`. This project does not touch WebGPU.
 
-## Ne içerir
+## What's inside
 
-- **`src/naive-scene-manager.ts`** — sadece `scene.add` / `scene.remove`. Sızıntı deseni:
-  JS referansını koparır ama GPU'ya tek kelime etmez.
-- **`src/memory-probe.ts`** — `renderer.info` sayaçlarını ölçüm aletine çevirir:
-  baseline tutar, `drift()` döndürür, `toCSV()` üretir (ring-buffer, prob'un kendisi
-  sızmaz). `RendererInfoLike` şekli sayesinde hem gerçek renderer'ı hem sahte
-  renderer'ı okur.
-- **`src/dispose.ts`** — `disposeSubtree` sahne grafiğini `traverse` ile gezer ve her
-  materyalin YEDİ doku alanını (`map`, `normalMap`, `roughnessMap`, `metalnessMap`,
-  `aoMap`, `alphaMap`, `envMap`) + geometriyi + materyali elden çıkarır.
-- **`src/texture-cache.ts`** — paylaşılan dokular için referans sayma. `acquire` artırır,
-  `release` azaltır, yalnızca sıfırda gerçek `dispose()` çağrılır (atlas 2→1→0 yolu).
-- **`src/scene-manager.ts`** — gezgin + refcount + grafik dışı `extras` (render target,
-  PMREM) tek bir `unload` sözleşmesinde.
-- **`src/dispose-spy.ts`** — WebGL gerektirmeyen sayan sahte renderer. Three.js'in gerçek
-  `"dispose"` olayını dinler; `info` getter'ı `renderer.info` ile birebir aynı şekilde
-  döner, böylece `MemoryProbe` sahte renderer'ı gerçeğinden ayırt edemez.
-- **`src/level-factory.ts`** — deterministik (`mulberry32`) seviye üreticisi; 8 mesh, her
-  biri kendi geometrisi + sahipli dokuları, hepsi paylaşılan atlas'ı ediniyor.
-- **`src/main.ts` + `index.html`** — gerçek `WebGLRenderer` ile tarayıcı demosu
-  (dark cinematic + neon glow arayüz).
-- **`src/view/diorama.ts`** — sunum katmanı: denetlenen 8 mesh'lik seviyeyi sinematik
-  bir diorama gibi çizen AYRI `WebGLRenderer` (ACESFilmic tone mapping, `RoomEnvironment`
-  + PMREM IBL, gölgeli zemin, fog, `UnrealBloomPass`). Kendi context'i olduğu için
-  ölçüm sayaçlarına **dokunmaz** → naif `geometries` drift'i 1600 kalır.
-- **`src/view/chart.ts`** — geometries drift'inin neon alan/çizgi grafiği (leak = tırmanan
-  rose çizgi + glow + "tepe 1600" rozeti; fixed = düz emerald çizgi).
+- **`src/naive-scene-manager.ts`** — nothing but `scene.add` / `scene.remove`. The leak pattern:
+  it cuts the JS reference but never says a word to the GPU.
+- **`src/memory-probe.ts`** — turns the `renderer.info` counters into a measuring instrument:
+  keeps a baseline, returns `drift()`, emits `toCSV()` (ring buffer, so the probe itself
+  does not leak). Thanks to the `RendererInfoLike` shape it reads both the real renderer and
+  the fake one.
+- **`src/dispose.ts`** — `disposeSubtree` walks the scene graph with `traverse` and disposes
+  all SEVEN texture slots of every material (`map`, `normalMap`, `roughnessMap`, `metalnessMap`,
+  `aoMap`, `alphaMap`, `envMap`) + the geometry + the material.
+- **`src/texture-cache.ts`** — reference counting for shared textures. `acquire` increments,
+  `release` decrements, the real `dispose()` is called only at zero (the atlas 2→1→0 path).
+- **`src/scene-manager.ts`** — walker + refcount + off-graph `extras` (render target,
+  PMREM) under a single `unload` contract.
+- **`src/dispose-spy.ts`** — a counting fake renderer that needs no WebGL. It listens to
+  Three.js's real `"dispose"` event; its `info` getter returns exactly the same shape as
+  `renderer.info`, so `MemoryProbe` cannot tell the fake renderer from the real one.
+- **`src/level-factory.ts`** — a deterministic (`mulberry32`) level generator; 8 meshes, each
+  with its own geometry + owned textures, all of them acquiring the shared atlas.
+- **`src/main.ts` + `index.html`** — browser demo with a real `WebGLRenderer`
+  (dark cinematic + neon glow interface).
+- **`src/view/diorama.ts`** — the presentation layer: a SEPARATE `WebGLRenderer` that draws the
+  audited 8-mesh level as a cinematic diorama (ACESFilmic tone mapping, `RoomEnvironment`
+  + PMREM IBL, shadowed ground, fog, `UnrealBloomPass`). Because it has its own context it
+  does **not** touch the measurement counters → the naive `geometries` drift stays 1600.
+- **`src/view/chart.ts`** — a neon area/line chart of the geometries drift (leak = climbing
+  rose line + glow + a "peak 1600" badge; fixed = flat emerald line).
 
-## Kurulum
+## Setup
 
 ```bash
 npm install
@@ -52,20 +53,20 @@ npm install
 npm test
 ```
 
-15 test — hepsi deterministik, **WebGL/GPU GEREKTİRMEZ** (Node'da koşar):
+15 tests — all deterministic, requiring **NO WebGL/GPU** (they run under Node):
 
-- **Naif sızıntı:** 200 döngü `NaiveSceneManager` → `drift().geometries > 0` ve
-  `.textures > 0` (sayaç tırmanır, düşmez).
-- **Sıfır sızıntı:** 200 döngü `SceneManager` → `drift()` dört alanda da `0`,
+- **Naive leak:** 200 cycles of `NaiveSceneManager` → `drift().geometries > 0` and
+  `.textures > 0` (the counter climbs and never comes down).
+- **Zero leak:** 200 cycles of `SceneManager` → `drift()` is `0` in all four fields,
   `cache.size === 0`, `loadedCount === 0`.
-- **Refcount 2→1→0:** atlas yalnızca SON sahip çıkınca dispose edilir (ne erken, ne geç).
-- **Gezinti:** `disposeSubtree` `map` + `normalMap` + `aoMap` + geometri + materyali
-  tek çağrıda dispose eder; paylaşılan dokuya dokunmaz.
-- **Grafik dışı:** sahne ağacında OLMAYAN `WebGLRenderTarget` yine de kapatılır.
-- **Prob / spy:** `drift` baseline sapmasını ölçer, `toCSV` doğru satır sayısı üretir;
-  spy'ın program sayımı imzaya göre dedup eder.
+- **Refcount 2→1→0:** the atlas is disposed only when the LAST owner leaves (neither early nor late).
+- **Walking:** `disposeSubtree` disposes `map` + `normalMap` + `aoMap` + the geometry + the
+  material in a single call, and leaves the shared texture alone.
+- **Off-graph:** a `WebGLRenderTarget` that is NOT in the scene tree still gets closed.
+- **Probe / spy:** `drift` measures the deviation from baseline, `toCSV` emits the right number
+  of rows; the spy's program count dedupes by signature.
 
-Beklenen çıktı:
+Expected output:
 
 ```
  ✓ test/dispose-spy.test.ts    (4 tests)
@@ -79,43 +80,43 @@ Beklenen çıktı:
       Tests  15 passed (15)
 ```
 
-Ölçülen deterministik sayılar (WebGL'siz, `DisposeSpy` ile):
+The deterministic numbers measured (without WebGL, using `DisposeSpy`):
 
-| Senaryo (200 döngü, meshCount=8) | geometries | textures | programs |
+| Scenario (200 cycles, meshCount=8) | geometries | textures | programs |
 |---|---|---|---|
-| Naif (`scene.remove`) | **1600** (200×8) | 5601 | 8 |
-| Doğru (`dispose` + refcount) — drift | **0** | **0** | **0** |
+| Naive (`scene.remove`) | **1600** (200×8) | 5601 | 8 |
+| Correct (`dispose` + refcount) — drift | **0** | **0** | **0** |
 
-Naif sürümde `geometries` 200. döngüde tam **1600**'ü gösterir. Doğru sürümde her sayaç
-baseline'a döner (`cache.size === 0`).
+In the naive version `geometries` shows exactly **1600** at cycle 200. In the correct version
+every counter returns to baseline (`cache.size === 0`).
 
-## Demo (tarayıcı)
+## Demo (browser)
 
 ```bash
 npm run dev
 ```
 
-`http://localhost:5173/` → sinematik diorama + cam kontrol paneli:
+`http://localhost:5173/` → cinematic diorama + a glass control panel:
 
-- **Naif 200× yükle** (rose/danger buton) — `renderer.info.memory` sayaçları tırmanır;
-  neon grafik geometries drift'ini 0→**1600** yükselen rose bir çizgiyle çizer (glow +
-  dolgu + "tepe 1600" rozeti), stat sayaçları `+1600 / +5602 / +8` (kırmızı) gösterir.
-- **Doğru 200× yükle** (emerald/success buton) — grafik düz emerald sıfır çizgisi; üç
-  sayaç da `0`.
+- **Naive 200× load** (rose/danger button) — the `renderer.info.memory` counters climb; the
+  neon chart draws the geometries drift as a rose line rising 0→**1600** (glow +
+  fill + a "peak 1600" badge), the stat counters show `+1600 / +5602 / +8` (red).
+- **Correct 200× load** (emerald/success button) — the chart is a flat emerald zero line; all three
+  counters are `0`.
 
-Mimari — **iki ayrı WebGL context**:
+Architecture — **two separate WebGL contexts**:
 
-1. **Ölçüm renderer'ı** (`main.ts`) — makaledeki gerçek `WebGLRenderer`. Sahnesi
-   baseline'da boştur; naif 200 döngü sonunda `geometries` mutlak = drift = **1600**
-   (makale iddiası). Görünmez ama gerçek context (sayaç kaynağı).
-2. **Diorama renderer'ı** (`view/diorama.ts`) — salt sunum, ayrı context; ölçüm
-   sayaçlarına dokunmaz. Denetlenen 8 mesh'i neon ışıkla, gölgeli zeminde gösterir.
+1. **The measurement renderer** (`main.ts`) — the real `WebGLRenderer` from the article. Its scene
+   is empty at baseline; after 200 naive cycles `geometries` absolute = drift = **1600**
+   (the article's claim). Invisible but a real context (the source of the counters).
+2. **The diorama renderer** (`view/diorama.ts`) — presentation only, a separate context; it does not
+   touch the measurement counters. It shows the audited 8 meshes under neon light on a shadowed ground.
 
-> Demo bir dev sunucusu ister. `index.html`'i `file://` ile açmak boş ekran verir
-> (Vite bare module specifier'ları çözer). Her zaman `npm run dev` kullanın.
+> The demo needs a dev server. Opening `index.html` with `file://` gives a blank screen
+> (Vite resolves the bare module specifiers). Always use `npm run dev`.
 
-Tarayıcıda gerçek `WebGLRenderer.info.memory` ile doğrulandı (headless Chrome, SwiftShader):
-naif → `geometries +1600 / textures +5602 / programs +8`; doğru → hepsi `0`.
+Verified in the browser against the real `WebGLRenderer.info.memory` (headless Chrome, SwiftShader):
+naive → `geometries +1600 / textures +5602 / programs +8`; correct → all `0`.
 
 ## Build
 
@@ -123,14 +124,14 @@ naif → `geometries +1600 / textures +5602 / programs +8`; doğru → hepsi `0`
 npm run build   # tsc && vite build → dist/
 ```
 
-## Neden WebGL gerektirmeden test edilebilir?
+## Why is this testable without WebGL?
 
-`renderer.info.memory`'nin ölçtüğü GPU yerleşimi, Three.js'in kaynaklardan gelen bir
-`"dispose"` olayını dinlemesiyle güncellenir. `BufferGeometry`, `Texture` ve `Material`,
-`dispose()` çağrıldığında `"dispose"` olayı yayınlar — bu gerçek Three.js davranışıdır.
-`DisposeSpy` aynı olayı dinleyip sayar; canvas'a, GPU'ya ve tarayıcıya dokunmaz. Böylece
-200 döngü kanıtı milisaniyeler içinde, deterministik olarak Node'da koşar.
+The GPU residency that `renderer.info.memory` measures is updated by Three.js listening for a
+`"dispose"` event coming from the resources. `BufferGeometry`, `Texture` and `Material` emit a
+`"dispose"` event when `dispose()` is called — that is real Three.js behavior.
+`DisposeSpy` listens to the same event and counts; it never touches a canvas, a GPU or a browser.
+That is how the 200-cycle proof runs deterministically under Node, in milliseconds.
 
-## Lisans
+## License
 
 MIT

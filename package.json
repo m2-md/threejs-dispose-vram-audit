@@ -1,7 +1,7 @@
 {
   "name": "threejs-dispose-vram-audit",
   "version": "1.0.0",
-  "description": "Three.js VRAM sızıntısını renderer.info.memory ile gözle görüp referans sayan bir ResourceTracker ile kapatmak; WebGL gerektirmeyen sayan sahte renderer'la 200 döngüde sıfır sızıntının vitest kanıtı",
+  "description": "Detecting and preventing GPU memory leaks in Three.js single-page applications: recursive scene tree disposal, reference-counted texture caching, and renderer.info VRAM tracking.",
   "type": "module",
   "license": "MIT",
   "scripts": {

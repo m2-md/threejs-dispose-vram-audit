@@ -13,7 +13,7 @@ export class TextureCache {
   acquire(key: string, create: () => THREE.Texture): THREE.Texture {
     let entry = this.byKey.get(key);
     if (!entry) {
-      const texture = create(); // üretici YALNIZCA ilk edinmede koşar
+      const texture = create(); // the factory runs ONLY on the first acquire
       entry = { texture, refs: 0 };
       this.byKey.set(key, entry);
       this.keyOf.set(texture, key);
@@ -27,7 +27,7 @@ export class TextureCache {
     if (!entry) return;
     entry.refs--;
     if (entry.refs <= 0) {
-      entry.texture.dispose(); // GERÇEK dispose — yalnızca son sahip çıkınca
+      entry.texture.dispose(); // REAL dispose — only when the last owner leaves
       this.byKey.delete(key);
     }
   }

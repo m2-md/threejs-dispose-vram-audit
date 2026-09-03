@@ -30,7 +30,7 @@ export class MemoryProbe {
       programs: info.programs?.length ?? 0,
       calls: info.render.calls,
     };
-    this.baseline ??= s; // ilk örnek baseline olur
+    this.baseline ??= s; // the first sample becomes the baseline
     this.ring.push(s);
     if (this.ring.length > this.capacity) this.ring.shift();
     return s;

@@ -1,10 +1,10 @@
-// view/diorama.ts — Ölçümden BAĞIMSIZ sinematik sahne.
-// Bu renderer ölçüm renderer'ından (main.ts'teki gerçek WebGLRenderer) AYRIDIR;
-// kendi WebGL context'i vardır. Bu yüzden diorama'nın geometri/doku sayısı,
-// naif döngünün `renderer.info.memory` sayaçlarına DOKUNMAZ → geometries drift = 1600 korunur.
+// view/diorama.ts — cinematic scene, INDEPENDENT of the measurement.
+// This renderer is SEPARATE from the measurement renderer (the real WebGLRenderer in main.ts);
+// it has its own WebGL context. That is why the diorama's geometry/texture count does NOT
+// touch the naive loop's `renderer.info.memory` counters → the geometries drift stays 1600.
 //
-// Görevi tek: makalede denetlenen 8 mesh'lik seviyeyi "dark cinematic + neon glow"
-// bir diorama gibi göstermek. Işık/kamera/zemin/bloom burada; kaynak sayısı umurunda değil.
+// It has one job: show the 8-mesh level audited in the article as a "dark cinematic + neon glow"
+// diorama. Lights/camera/ground/bloom live here; it does not care about resource counts.
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -14,7 +14,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { TextureCache } from "../texture-cache";
 import { buildLevel } from "../level-factory";
 
-// Neon accent paleti — cyan / violet / magenta döngüsü.
+// Neon accent palette — cyan / violet / magenta cycle.
 const NEON = [0x22d3ee, 0xa78bfa, 0xf472b6, 0x34d399, 0x38bdf8, 0xc084fc];
 
 export interface Diorama {
@@ -48,7 +48,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x080a11, 0.055);
 
-  // RoomEnvironment + PMREM → yumuşak IBL. Harici HDR dosyası YOK (bundled).
+  // RoomEnvironment + PMREM → soft IBL. NO external HDR file (bundled).
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
   scene.environment = envRT.texture;
@@ -57,7 +57,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   camera.position.set(4.6, 3.4, 6.4);
   camera.lookAt(0, 0.4, 0);
 
-  // Anahtar ışık (key) — soğuk beyaz, gölge kaynağı.
+  // Key light — cool white, the shadow source.
   const key = new THREE.DirectionalLight(0xdfefff, 2.6);
   key.position.set(6, 9, 4);
   key.castShadow = true;
@@ -72,7 +72,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   key.shadow.radius = 6;
   scene.add(key);
 
-  // Neon dolgu (fill) ışıkları — sahneye cyan/violet renk sızdırır.
+  // Neon fill lights — they bleed cyan/violet color into the scene.
   const cyanFill = new THREE.PointLight(0x22d3ee, 26, 22, 2);
   cyanFill.position.set(-5, 2.2, 3.5);
   scene.add(cyanFill);
@@ -81,7 +81,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   scene.add(violetFill);
   scene.add(new THREE.HemisphereLight(0x1a2740, 0x05060b, 0.35));
 
-  // Gölgeli zemin — hafif metalik, çevreyi yansıtan koyu düzlem.
+  // Shadowed ground — a slightly metallic dark plane that reflects the environment.
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(16, 96),
     new THREE.MeshStandardMaterial({
@@ -95,7 +95,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Zemin ızgarası — ince neon çizgiler, derinlik hissi.
+  // Ground grid — thin neon lines, a sense of depth.
   const grid = new THREE.GridHelper(28, 56, 0x22d3ee, 0x141c2b);
   const gm = grid.material as THREE.Material;
   gm.transparent = true;
@@ -103,15 +103,15 @@ export function createDiorama(container: HTMLElement): Diorama {
   grid.position.y = 0;
   scene.add(grid);
 
-  // --- Denetlenen seviye: gerçek buildLevel ile 8 mesh (ayrı cache/context). ---
+  // --- The audited level: 8 meshes from the real buildLevel (separate cache/context). ---
   const cache = new TextureCache();
-  const level = buildLevel(cache, 7); // mask=7 → tüm opsiyonel slotlar dolu, zengin materyal
+  const level = buildLevel(cache, 7); // mask=7 → every optional slot filled, a rich material
   const rig = new THREE.Group();
   scene.add(rig);
   rig.add(level.root);
 
-  // level-factory tüm mesh'leri (0,0,0)'a koyar → üst üste biner. Görsel katmanda
-  // yeniden konumlandırıyoruz (kaynak sayısını DEĞİŞTİRMEDEN) ve neon emissive veriyoruz.
+  // level-factory puts every mesh at (0,0,0) → they stack on top of each other. In the visual
+  // layer we reposition them (WITHOUT changing the resource count) and give them a neon emissive.
   const meshes: THREE.Mesh[] = [];
   level.root.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
@@ -126,7 +126,7 @@ export function createDiorama(container: HTMLElement): Diorama {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
-    // Materyali diorama için neon'a çek (ölçüme etkisi yok — ayrı renderer).
+    // Push the material toward neon for the diorama (no effect on the measurement — separate renderer).
     const mat = mesh.material as THREE.MeshStandardMaterial;
     const neon = NEON[i % NEON.length];
     mat.emissive = new THREE.Color(neon);
@@ -136,7 +136,7 @@ export function createDiorama(container: HTMLElement): Diorama {
     mat.envMapIntensity = 1.2;
     mat.needsUpdate = true;
 
-    // İnce neon tel-çerçeve — glow'u bloom'da güçlendirir.
+    // Thin neon wireframe — it strengthens the glow under bloom.
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(mesh.geometry),
       new THREE.LineBasicMaterial({
@@ -148,7 +148,7 @@ export function createDiorama(container: HTMLElement): Diorama {
     mesh.add(edges);
   });
 
-  // Merkezde yükselen neon "sütun" — sahneye dikey aksanı verir (dekoratif).
+  // A neon "pillar" rising at the center — it gives the scene its vertical accent (decorative).
   const pillar = new THREE.Mesh(
     new THREE.CylinderGeometry(0.14, 0.14, 3.2, 24, 1, true),
     new THREE.MeshBasicMaterial({
@@ -161,7 +161,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   pillar.position.y = 1.6;
   rig.add(pillar);
 
-  // --- Post-processing: hafif bloom → neon glow. ---
+  // --- Post-processing: light bloom → neon glow. ---
   const composer = new EffectComposer(renderer);
   composer.setSize(w, h);
   composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -170,7 +170,7 @@ export function createDiorama(container: HTMLElement): Diorama {
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
-  // --- Animasyon: yavaş dönüş + kamera nefesi. ---
+  // --- Animation: slow rotation + camera breathing. ---
   const clock = new THREE.Clock();
   let raf = 0;
   const tick = () => {

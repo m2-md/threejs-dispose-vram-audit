@@ -1,12 +1,12 @@
-// extras.test.ts — grafik DIŞI kaynaklar + acquire idempotentliği
+// extras.test.ts — resources OUTSIDE the graph + acquire idempotency
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
 import { SceneManager } from "../src/scene-manager";
 import { TextureCache } from "../src/texture-cache";
 import { buildLevel, ATLAS_KEY } from "../src/level-factory";
 
-describe("Mesh'lerin ötesi: grafik dışı kaynaklar", () => {
-  it("sahne ağacında OLMAYAN WebGLRenderTarget yine de dispose edilir", () => {
+describe("Beyond meshes: resources outside the graph", () => {
+  it("a WebGLRenderTarget that is NOT in the scene tree still gets disposed", () => {
     const sm = new SceneManager();
     const level = buildLevel(sm.cache, 3);
 
@@ -18,12 +18,12 @@ describe("Mesh'lerin ötesi: grafik dışı kaynaklar", () => {
     expect(disposed).toBe(false);
 
     sm.unload(level);
-    expect(disposed).toBe(true); // extras listesi sahiplendi → kapatıldı
+    expect(disposed).toBe(true); // the extras list owned it → it was closed
   });
 });
 
-describe("TextureCache.acquire idempotentliği", () => {
-  it("aynı anahtarla iki acquire AYNI instance'ı verir, refs 2 olur", () => {
+describe("TextureCache.acquire idempotency", () => {
+  it("two acquires with the same key return the SAME instance and refs becomes 2", () => {
     const cache = new TextureCache();
     let created = 0;
     const create = () => {
@@ -36,8 +36,8 @@ describe("TextureCache.acquire idempotentliği", () => {
     const first = cache.acquire(ATLAS_KEY, create);
     const second = cache.acquire(ATLAS_KEY, create);
 
-    expect(second).toBe(first); // AYNI Texture instance
-    expect(created).toBe(1); // üretici yalnızca bir kez koştu (lazy)
+    expect(second).toBe(first); // the SAME Texture instance
+    expect(created).toBe(1); // the factory ran exactly once (lazy)
     expect(cache.refs(ATLAS_KEY)).toBe(2);
     expect(cache.size).toBe(1);
   });

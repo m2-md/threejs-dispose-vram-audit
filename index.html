@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dispose() VRAM Denetimi — Three.js</title>
+    <title>dispose() VRAM Audit — Three.js</title>
     <style>
       :root {
         --cyan: #22d3ee;
@@ -302,7 +302,7 @@
         margin-right: 6px;
         vertical-align: middle;
       }
-      /* Ölçüm renderer'ı: gerçek WebGL context (sayaç kaynağı) ama görünmez. */
+      /* Measurement renderer: a real WebGL context (source of the counters) but invisible. */
       #meter-gl {
         position: fixed;
         left: -10000px;
@@ -318,32 +318,32 @@
     <div class="wrap">
       <header>
         <div class="eyebrow">Three.js · VRAM AUDIT</div>
-        <h1>Çöpçünün Anahtarı GPU Kapısını Açmaz</h1>
+        <h1>The Garbage Collector's Key Does Not Open the GPU Door</h1>
         <p>
-          Bir seviyeyi 200 kez yükleyip boşaltıyoruz. Naif
-          <code>scene.remove</code> sağ binayı (VRAM) tıka basa doldurur; doğru
-          <code>dispose + refcount</code> her döngüde sıfırlar. Gerçek
-          <code>renderer.info.memory</code> sayaçlarıyla ölçülür.
+          We load and unload a level 200 times. Naive
+          <code>scene.remove</code> packs the right building (VRAM) full; correct
+          <code>dispose + refcount</code> clears it every cycle. Measured with real
+          <code>renderer.info.memory</code> counters.
         </p>
       </header>
 
       <div class="grid">
         <main class="glass" id="stage">
           <div class="stage-tag">
-            Denetlenen seviye · <b>8 mesh DIORAMA</b>
+            Audited level · <b>8 mesh DIORAMA</b>
           </div>
         </main>
 
         <aside class="glass">
-          <div class="panel-head">Kontrol</div>
+          <div class="panel-head">Controls</div>
           <div class="btns">
             <button id="naive">
-              <b>Naif 200× yükle</b>
-              <span>scene.remove — sızıntı tırmanır</span>
+              <b>Naive 200× load</b>
+              <span>scene.remove — the leak climbs</span>
             </button>
             <button id="correct">
-              <b>Doğru 200× yükle</b>
-              <span>dispose + refcount — sıfır sızıntı</span>
+              <b>Correct 200× load</b>
+              <span>dispose + refcount — zero leak</span>
             </button>
           </div>
 
@@ -365,8 +365,8 @@
           </div>
 
           <div id="verdict">
-            Bir buton seç → 200 döngü koşar,
-            <code>renderer.info.memory</code> drift'i buraya düşer.
+            Pick a button → 200 cycles run and the
+            <code>renderer.info.memory</code> drift lands here.
           </div>
 
           <div class="foot">
@@ -384,7 +384,7 @@
               ></span
               >fixed</span
             >
-            <span id="status">hazır</span>
+            <span id="status">ready</span>
           </div>
         </aside>
       </div>

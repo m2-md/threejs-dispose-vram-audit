@@ -19,7 +19,7 @@ export function disposeMaterial(
   for (const slot of TEXTURE_SLOTS) {
     const tex = (material as unknown as Record<string, unknown>)[slot];
     if (tex instanceof THREE.Texture) {
-      if (cache?.isShared(tex)) continue; // paylaşılan doku cache'in işi — ona dokunma
+      if (cache?.isShared(tex)) continue; // shared texture is the cache's job — hands off
       tex.dispose();
     }
   }

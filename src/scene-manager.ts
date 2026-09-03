@@ -16,9 +16,9 @@ export class SceneManager {
 
   unload(level: Level): void {
     this.scene.remove(level.root);
-    disposeSubtree(level.root, this.cache); // sahipli geometri + doku + materyal
-    for (const key of level.shared) this.cache.release(key); // paylaşılan: refcount
-    for (const extra of level.extras) extra.dispose(); // grafik DIŞI kaynaklar
+    disposeSubtree(level.root, this.cache); // owned geometry + textures + materials
+    for (const key of level.shared) this.cache.release(key); // shared: refcount
+    for (const extra of level.extras) extra.dispose(); // resources OUTSIDE the graph
     this.loaded = this.loaded.filter((l) => l !== level);
   }
 

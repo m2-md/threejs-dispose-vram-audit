@@ -1,4 +1,4 @@
-// dispose.test.ts — gezginin gerçekten her doku alanını gezdiğinin kanıtı
+// dispose.test.ts — proof that the walker really visits every texture slot
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
 import { disposeSubtree, disposeMaterial } from "../src/dispose";
@@ -10,8 +10,8 @@ function tinyTexture(): THREE.DataTexture {
   return t;
 }
 
-describe("disposeSubtree: sahne grafiğini gezmek", () => {
-  it("geometri + 3 doku alanı + materyali TEK çağrıda dispose eder", () => {
+describe("disposeSubtree: walking the scene graph", () => {
+  it("disposes the geometry + 3 texture slots + the material in ONE call", () => {
     const disposed = new Set<string>();
 
     const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -27,14 +27,14 @@ describe("disposeSubtree: sahne grafiğini gezmek", () => {
     material.addEventListener("dispose", () => disposed.add("material"));
 
     const mesh = new THREE.Mesh(geometry, material);
-    disposeSubtree(mesh); // cache YOK → her doku sahipli sayılır
+    disposeSubtree(mesh); // NO cache → every texture counts as owned
 
     expect(disposed).toEqual(
       new Set(["geometry", "map", "normalMap", "aoMap", "material"]),
     );
   });
 
-  it("çok-materyalli mesh'in her materyalini gezer", () => {
+  it("walks every material of a multi-material mesh", () => {
     const disposed = new Set<string>();
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const matA = new THREE.MeshStandardMaterial({ map: tinyTexture() });
@@ -48,7 +48,7 @@ describe("disposeSubtree: sahne grafiğini gezmek", () => {
     expect(disposed).toEqual(new Set(["A", "B"]));
   });
 
-  it("paylaşılan dokuya (cache) DOKUNMAZ, sahipliyi dispose eder", () => {
+  it("leaves the shared (cached) texture ALONE and disposes the owned one", () => {
     const cache = new TextureCache();
     const shared = cache.acquire("atlas", () => tinyTexture()); // refs 1
     const owned = tinyTexture();
@@ -64,8 +64,8 @@ describe("disposeSubtree: sahne grafiğini gezmek", () => {
 
     disposeMaterial(material, cache);
 
-    expect(sharedDisposed).toBe(false); // paylaşılan → cache'in işi, atlandı
-    expect(ownedDisposed).toBe(true); // sahipli → dispose edildi
-    expect(cache.isShared(shared)).toBe(true); // hâlâ cache'te (refs 1)
+    expect(sharedDisposed).toBe(false); // shared → the cache's job, skipped
+    expect(ownedDisposed).toBe(true); // owned → disposed
+    expect(cache.isShared(shared)).toBe(true); // still in the cache (refs 1)
   });
 });

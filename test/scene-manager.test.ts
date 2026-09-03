@@ -7,32 +7,32 @@ import { buildLevel } from "../src/level-factory";
 import { DisposeSpy } from "../src/dispose-spy";
 import { MemoryProbe } from "../src/memory-probe";
 
-describe("dispose denetimi — 200 döngü", () => {
-  it("naif scene.remove sızdırır: sayaç tırmanır, düşmez", () => {
+describe("dispose audit — 200 cycles", () => {
+  it("naive scene.remove leaks: the counter climbs and never comes down", () => {
     const spy = new DisposeSpy();
     const probe = new MemoryProbe();
     const naive = new NaiveSceneManager();
-    const cache = new TextureCache(); // naif sürüm bunu asla release etmez
+    const cache = new TextureCache(); // the naive version never releases this
     probe.sample(spy, 0);
 
     for (let cycle = 1; cycle <= 200; cycle++) {
       const level = buildLevel(cache, cycle);
       naive.load(level);
-      spy.renderScene(naive.scene); // GPU'ya yükle
-      naive.unload(level); // yalnızca scene.remove
+      spy.renderScene(naive.scene); // upload to the GPU
+      naive.unload(level); // scene.remove only
       probe.sample(spy, cycle);
     }
 
     const drift = probe.drift();
-    expect(drift.geometries).toBeGreaterThan(0); // sızıntı KANITI
+    expect(drift.geometries).toBeGreaterThan(0); // PROOF of the leak
     expect(drift.textures).toBeGreaterThan(0);
   });
 
-  it("doğru unload sızdırmaz: 200 döngü sonunda sayaçlar baseline'a döner", () => {
+  it("the correct unload does not leak: after 200 cycles the counters return to baseline", () => {
     const spy = new DisposeSpy();
     const probe = new MemoryProbe();
     const sm = new SceneManager();
-    probe.sample(spy, 0); // baseline: boş sahne
+    probe.sample(spy, 0); // baseline: empty scene
 
     for (let cycle = 1; cycle <= 200; cycle++) {
       const level = buildLevel(sm.cache, cycle);
@@ -48,7 +48,7 @@ describe("dispose denetimi — 200 döngü", () => {
       programs: 0,
       calls: 0,
     });
-    expect(sm.cache.size).toBe(0); // paylaşılan doku da temizlendi
+    expect(sm.cache.size).toBe(0); // the shared texture was cleaned up too
     expect(sm.loadedCount).toBe(0);
   });
 });

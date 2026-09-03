@@ -1,10 +1,10 @@
-// dispose-spy.test.ts — WebGL gerektirmeyen sayan sahte renderer
+// dispose-spy.test.ts — the counting fake renderer that needs no WebGL
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
 import { DisposeSpy } from "../src/dispose-spy";
 
-describe("DisposeSpy: dispose olayıyla sayan sahte renderer", () => {
-  it("geometri/doku sayar; dispose olayı sayacı düşürür", () => {
+describe("DisposeSpy: a fake renderer that counts via the dispose event", () => {
+  it("counts geometries/textures; the dispose event decrements the counter", () => {
     const spy = new DisposeSpy();
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const texture = new THREE.DataTexture(new Uint8Array(4), 1, 1);
@@ -23,7 +23,7 @@ describe("DisposeSpy: dispose olayıyla sayan sahte renderer", () => {
     expect(spy.info.memory.textures).toBe(0);
   });
 
-  it("aynı kaynağı iki kez render etmek çift saymaz (ilk görüş)", () => {
+  it("rendering the same resource twice does not double count (first sighting wins)", () => {
     const spy = new DisposeSpy();
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
@@ -33,7 +33,7 @@ describe("DisposeSpy: dispose olayıyla sayan sahte renderer", () => {
     expect(spy.info.memory.geometries).toBe(1);
   });
 
-  it("aynı imzalı iki materyal TEK program paylaşır; ikisi de dispose olunca serbest kalır", () => {
+  it("two materials with the same signature share ONE program, freed when both are disposed", () => {
     const spy = new DisposeSpy();
     const a = new THREE.MeshStandardMaterial({
       map: new THREE.DataTexture(new Uint8Array(4), 1, 1),
@@ -47,16 +47,16 @@ describe("DisposeSpy: dispose olayıyla sayan sahte renderer", () => {
     scene.add(new THREE.Mesh(g, b));
 
     spy.renderScene(scene);
-    expect(spy.info.programs.length).toBe(1); // aynı imza → tek program (refs 2)
+    expect(spy.info.programs.length).toBe(1); // same signature → one program (refs 2)
 
     a.dispose();
-    expect(spy.info.programs.length).toBe(1); // hâlâ B kullanıyor
+    expect(spy.info.programs.length).toBe(1); // B is still using it
 
     b.dispose();
-    expect(spy.info.programs.length).toBe(0); // son sahip çıktı → serbest
+    expect(spy.info.programs.length).toBe(0); // the last owner left → freed
   });
 
-  it("farklı imzalı materyaller ayrı program sayılır", () => {
+  it("materials with different signatures count as separate programs", () => {
     const spy = new DisposeSpy();
     const withMap = new THREE.MeshStandardMaterial({
       map: new THREE.DataTexture(new Uint8Array(4), 1, 1),
@@ -68,6 +68,6 @@ describe("DisposeSpy: dispose olayıyla sayan sahte renderer", () => {
     scene.add(new THREE.Mesh(g, plain));
 
     spy.renderScene(scene);
-    expect(spy.info.programs.length).toBe(2); // farklı imza → iki program
+    expect(spy.info.programs.length).toBe(2); // different signatures → two programs
   });
 });
